@@ -32,54 +32,54 @@ z_score <- function(x, group) {
 
 # ~ Import and clean data ---------------------------------------------------
 
-raw <- import(here("A-original-data/B117_experiment.dta"))
-
-# clean data 
-data <- raw %>% 
-        transmute(
-                # rename first 
-                id = caseid,
-                   fear = q1_1, 
-                   hope = q1_2,
-                   group = case_when(qGroup == 1 ~ "Control", 
-                                     qGroup == 2 ~ "Threat", 
-                                     qGroup == 3 ~ "Hope"),
-                   group = fct_relevel(group, "Control", "Threat"),
-                   
-                # for each variable we have 3 versions of the question
-                # clearly explained, helps me, helps others,
-                # we average across these
-                   healththreat = rowMeans(select(.,q1_3, q1_7, q1_11 )), 
-                   guidelines =   rowMeans(select(.,q1_4, q1_8, q1_12 )), 
-                   safely =       rowMeans(select(.,q1_5, q1_9, q1_13 )), 
-                   vaccines =     rowMeans(select(.,q1_6, q1_10,q1_14 ))
-                   ) %>% 
-        # now we calculate the z-score based on control group mean and sd
-        # for each dv
-        mutate(across(.cols = c("fear", "hope", "healththreat", "guidelines",
-                                "safely", "vaccines"),
-                      .fns = ~z_score(.x, group), .names = "z_{col}" )) %>%
-        glimpse
-
-# make sure we managed to standardize well. 
-# mean should be 0 in control group
-stopifnot(near(mean(data$z_healththreat[data$group == "Control"]), 0))
-stopifnot(near(mean(data$z_guidelines[data$group == "Control"]), 0))
-stopifnot(near(mean(data$z_safely[data$group == "Control"]), 0))
-stopifnot(near(mean(data$z_vaccines[data$group == "Control"]), 0))
-
-# sd should be near 1
-stopifnot(near(sd(data$z_healththreat[data$group == "Control"]), 1))
-stopifnot(near(sd(data$z_guidelines[data$group == "Control"]), 1))
-stopifnot(near(sd(data$z_safely[data$group == "Control"]), 1))
-stopifnot(near(sd(data$z_vaccines[data$group == "Control"]), 1))
-
-saveRDS(data, file = here("B-analysis-data/B117_experiment_clean.rds"))
-data <- readRDS(file = here("B-analysis-data/B117_experiment_clean.rds"))
+# raw <- import(here("A-original-data/B117_experiment.dta"))
+# 
+# # clean data 
+# data <- raw %>% 
+#         transmute(
+#                 # rename first 
+#                 id = caseid,
+#                    fear = q1_1, 
+#                    hope = q1_2,
+#                    group = case_when(qGroup == 1 ~ "Control", 
+#                                      qGroup == 2 ~ "Threat", 
+#                                      qGroup == 3 ~ "Hope"),
+#                    group = fct_relevel(group, "Control", "Threat"),
+#                    
+#                 # for each variable we have 3 versions of the question
+#                 # clearly explained, helps me, helps others,
+#                 # we average across these
+#                    healththreat = rowMeans(select(.,q1_3, q1_7, q1_11 )), 
+#                    guidelines =   rowMeans(select(.,q1_4, q1_8, q1_12 )), 
+#                    safely =       rowMeans(select(.,q1_5, q1_9, q1_13 )), 
+#                    vaccines =     rowMeans(select(.,q1_6, q1_10,q1_14 ))
+#                    ) %>% 
+#         # now we calculate the z-score based on control group mean and sd
+#         # for each dv
+#         mutate(across(.cols = c("fear", "hope", "healththreat", "guidelines",
+#                                 "safely", "vaccines"),
+#                       .fns = ~z_score(.x, group), .names = "z_{col}" )) %>%
+#         glimpse
+# 
+# # make sure we managed to standardize well. 
+# # mean should be 0 in control group
+# stopifnot(near(mean(data$z_healththreat[data$group == "Control"]), 0))
+# stopifnot(near(mean(data$z_guidelines[data$group == "Control"]), 0))
+# stopifnot(near(mean(data$z_safely[data$group == "Control"]), 0))
+# stopifnot(near(mean(data$z_vaccines[data$group == "Control"]), 0))
+# 
+# # sd should be near 1
+# stopifnot(near(sd(data$z_healththreat[data$group == "Control"]), 1))
+# stopifnot(near(sd(data$z_guidelines[data$group == "Control"]), 1))
+# stopifnot(near(sd(data$z_safely[data$group == "Control"]), 1))
+# stopifnot(near(sd(data$z_vaccines[data$group == "Control"]), 1))
+# 
+# saveRDS(data, file = here("B-analysis-data/B117_experiment_clean.rds"))
 
 
 
 # ~ Analysis ----------------------------------------------------------------
+data <- readRDS(file = here("B-analysis-data/B117_experiment_clean.rds"))
 
 # n of observations
 nrow(data)
@@ -178,45 +178,70 @@ myp2 <- function(model, label, tag = NULL){
 # save plot. This appears as part of Figure 1 in the paper,
 ggsave(here("D-documents/figures/fig1_c-h.jpg"), width = 9.4, height = 2.6)
 
+# estimate partial correlation between hope vs fear on other 4 DVs
+
+cors1 <- lm(z_healththreat ~ z_hope+z_fear + group, data)
+cors2 <- lm(z_guidelines ~ z_hope+z_fear + group, data)
+cors3 <- lm(z_safely ~  z_hope+z_fear +group, data)
+cors4 <- lm(z_vaccines ~  z_hope+z_fear +group, data)
+
+
+stargazer(cors1, cors2, cors3, cors4,
+          type = "text", 
+          digits = 2,
+          covariate.labels = c("Hopeful", "Fearful", 
+                               "Exp - Threat", "Exp - Hope"),
+          dep.var.labels = c("Public health threat",
+                             "Adhere to guidelines",
+                             "Safely get through",
+                             "Strong measures required"
+          ),
+          star.cutoffs = c(0.05, 0.01, 0.001),
+          out = here("D-documents/tables/hope-vs-fear.html"),
+          omit.stat = c("rsq", "f", "ser")
+          )
 
 # Observational data -------------------------------------------------------------------------
 
 # import raw data
-epi_raw <- import(here("A-original-data/B117_observational.rds"))
+# epi_raw <- import(here("A-original-data/B117_observational.rds"))
+# 
+# # define a function which shall recode Danish DV
+# dk_scale5  <- function(x){
+#         case_when(x == "Helt uenig" ~ 0,
+#                   x == "Delvis uenig" ~ 0,
+#                   x == "Hverken enig eller uenig" ~ 0,
+#                   x == "Delvis enig" ~ 1,
+#                   x == "Helt enig" ~ 1,
+#                   TRUE ~ NA_real_)
+# }
+# 
+# # clean data 
+# epi <- epi_raw %>% 
+#         # drop responses before our b117 variables were added
+#         filter(ActualSurveyStartTime >= lubridate::ymd("2021-01-01")) %>% 
+#         # recode focal DVs
+#         transmute(heard = dk_scale5(qNew_10_18_resp), 
+#                   worried = dk_scale5(qNew_10_19_resp), 
+#                   follow = dk_scale5(qNew_10_20_resp), 
+#                   # and also create country codes 
+#                   country_code = case_when(country == "Danmark" ~ "DK", 
+#                                            country == "Sverige" ~ "SW", 
+#                                            country == "United Kingdom" ~ "UK", 
+#                                            country == "USA" ~ "US", 
+#                                            country == "Italien" ~ "IT", 
+#                                            country == "Frankrig" ~ "FR", 
+#                                            country == "Ungarn" ~ "HU", 
+#                                            country == "Tyskland" ~ "DE", 
+#                                            TRUE ~ NA_character_)
+#         ) %>% 
+#         na.omit() 
+# # save cleaned data
+# saveRDS(epi, file = here("B-analysis-data/B117_observational_clean.rds"))
 
-# define a function which shall recode Danish DV
-dk_scale5  <- function(x){
-        case_when(x == "Helt uenig" ~ 0,
-                  x == "Delvis uenig" ~ 0,
-                  x == "Hverken enig eller uenig" ~ 0,
-                  x == "Delvis enig" ~ 1,
-                  x == "Helt enig" ~ 1,
-                  TRUE ~ NA_real_)
-}
 
-# clean data 
-epi <- epi_raw %>% 
-        # drop responses before our b117 variables were added
-        filter(ActualSurveyStartTime >= lubridate::ymd("2021-01-01")) %>% 
-        # recode focal DVs
-        transmute(heard = dk_scale5(qNew_10_18_resp), 
-                  worried = dk_scale5(qNew_10_19_resp), 
-                  follow = dk_scale5(qNew_10_20_resp), 
-                  # and also create country codes 
-                  country_code = case_when(country == "Danmark" ~ "DK", 
-                                           country == "Sverige" ~ "SW", 
-                                           country == "United Kingdom" ~ "UK", 
-                                           country == "USA" ~ "US", 
-                                           country == "Italien" ~ "IT", 
-                                           country == "Frankrig" ~ "FR", 
-                                           country == "Ungarn" ~ "HU", 
-                                           country == "Tyskland" ~ "DE", 
-                                           TRUE ~ NA_character_)
-        ) %>% 
-        na.omit() 
-# save cleaned data
-saveRDS(epi, file = here("B-analysis-data/B117_observational_clean.rds"))
-# reload cleaned data
+
+# # reload cleaned data
 epi <- readRDS(file = here("B-analysis-data/B117_observational_clean.rds"))
 
 nrow(epi)
