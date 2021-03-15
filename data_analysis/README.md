@@ -22,7 +22,8 @@ File name structure:
     - `fig2.jpg` Observational effects reported in Fig 2
   - `tables`        
     - `experiment_results.html` Regression table Marginal effects of experiment
-    - `experiment_contrasts.html` REgression table with contrast between hope and threat
+    - `experiment_contrasts.html` Regression table with contrast between hope and threat
+    - `hope-vs-fear.html` Regression table contrasting hope vs fear against other outcomes  
 - `E-metadata` 
     - `B117 experiment questionnaire.docx` Questionnaire of experiment
     - `B117 experiment weighting scheme` Sample characteristics
